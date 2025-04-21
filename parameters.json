@@ -1,0 +1,65 @@
+{
+  "n_iterations": 0,
+  "n_population": 20,
+  "n_survivors": 2,
+  "initial_mutation_rate": 0.1,
+  "winddown_trigger": 15,
+  "winddown_rate": 0.9,
+  "command_line": "/opt/conda/envs/vaxpress/bin/vaxpress -i optimized.fasta --iterations 0 -o VaxPress_QC/",
+  "seed": 922,
+  "processes": 4,
+  "random_initialization": false,
+  "conservative_start": null,
+  "boost_loop_mutations": "1.5:15",
+  "full_scan_interval": 300,
+  "species": "Homo sapiens",
+  "codon_table": "standard",
+  "addons": [],
+  "lineardesign_dir": null,
+  "lineardesign_lambda": null,
+  "lineardesign_omit_start": 5,
+  "folding_engine": "vienna",
+  "fitness": {
+    "iCodon": {
+      "weight": 1.0
+    },
+    "degscore": {
+      "weight": 1.0
+    },
+    "cai": {
+      "weight": 1.0
+    },
+    "bicodon": {
+      "weight": 1.0
+    },
+    "ucount": {
+      "weight": 3.0,
+      "target":0.25
+    },
+    "mfe": {
+      "weight": 3.0
+    },
+    "loop": {
+      "weight": 1.5,
+      "threshold": 2
+    },
+    "start_str": {
+      "weight": 1,
+      "width": 15
+    },
+    "longstem": {
+      "weight": 100.0,
+      "threshold": 27
+    },
+    "gc": {
+      "weight": 3.0,
+      "window_size": 50,
+      "stride": 5
+    },
+    "repeats": {
+      "weight": 1.0,
+      "min_repeats": 2,
+      "min_length": 10
+    }
+  }
+}

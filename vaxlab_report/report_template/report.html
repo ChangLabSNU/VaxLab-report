@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VaxPress Result: {{ outputseq.id | default('N/A') }}</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link rel="preload" href="https://fonts.googleapis.com/css?family=Open+Sans:400,700&display=swap" as="style" type="text/css" crossorigin>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#157878">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="stylesheet" href="https://pages-themes.github.io/cayman/assets/css/style.css?v=29f8a343aad3bd9eea1173c01ab45a8a20acd7ff">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        /* Increase main content width */
+        .main-content { max-width: 1400px; width: 95%; margin: 0 auto; }
+        .full-width-table { width: 100%; table-layout: fixed; margin-left: auto; margin-right: auto; border-collapse: collapse; margin-bottom: 1.5em; }
+        .full-width-table th, .full-width-table td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; word-wrap: break-word; }
+        .full-width-table th { background-color: #f2f2f2; }
+        .plotly-graph-div { margin-bottom: 20px; }
+        code { background-color: #f8f8f8; border: 1px solid #ddd; padding: 0.1em 0.4em; border-radius: 3px; font-size: 85%; word-break: break-all;}
+        .recommended-range { font-style: italic; color: #555; }
+        iframe { max-width: 100%; border:1px solid #ccc; }
+    </style>
+</head>
+<body>
+  <header class="page-header" role="banner">
+    <h1 class="project-name">VaxLab mRNA Optimization Result</h1>
+     <h2 class="project-tagline">{{ outputseq.id | default('N/A') }}</h2>
+    </header>
+
+  <main id="content" class="main-content" role="main">
+
+  <h1>Input Information</h1>
+  <ul>
+      {# Description and Command REMOVED #}
+      <li><b>Length:</b> {{ outputseq.seq | length }} nt</li>
+      <li><b>Report generated at:</b> {{ metainfo.end_time | localtime }}</li>
+  </ul>
+
+  <h2>Global Sequence Metrics</h2>
+  {% if evaluations.optimized.global_metrics %}
+    {# 1. 원하는 순서대로 메트릭 키(key) 리스트 정의 #}
+    {# --- ADD 'cai' HERE --- #}
+    {% set global_metric_order = ['gc', 'cai', 'ucount', 'repeat', 'degscore'] %}
+    {# (선택사항) 구조 관련 메트릭 키 목록 정의 (제외 필터용) #}
+    {% set structure_keys_to_exclude = ['mfe', 'loop', 'start_str', 'longstem', 'structure'] %}
+
+    <table class="full-width-table">
+      <thead>
+      <tr>
+        <th style="width: 15%;">Metric</th>
+        <th style="width: 45%;">Description</th>
+        <th style="width: 20%;">Value</th>
+        <th style="width: 20%;">Recommended Range</th>
+      </tr>
+      </thead>
+      <tbody>
+      {# 2. 정의된 순서대로 반복 #}
+      {% for key in global_metric_order %}
+        {# 3. 해당 키가 실제 데이터에 존재하고, 제외 대상이 아닌지 확인 #}
+        {% if key in evaluations.optimized.global_metrics and key not in structure_keys_to_exclude %}
+          {# 4. 키를 사용하여 데이터 접근 #}
+          {% set value = evaluations.optimized.global_metrics[key] %}
+          <tr>
+            <td>{{ metric_labels.get(key, key) }}</td>
+            <td>{{ metric_descriptions.get(key, key) }}</td>
+            <td>{{ value | format_number }}</td>
+            <td><span class="recommended-range">{{ metric_ranges.get(key, '') }}</span></td>
+          </tr>
+        {% endif %}
+      {% endfor %}
+
+      {# (선택사항) 위에서 지정한 순서 외 나머지 메트릭들을 알파벳 순으로 표시 #}
+      {% for key, value in evaluations.optimized.global_metrics.items() | sort %}
+          {# 이미 표시되었거나 제외 대상인 키는 건너뜀 #}
+          {% if key not in global_metric_order and key not in structure_keys_to_exclude %}
+           <tr>
+             <td>{{ metric_labels.get(key, key) }}</td> {# '(Other)' 표시 추가 가능 #}
+             <td>{{ metric_descriptions.get(key, key) }}</td>
+             <td>{{ value | format_number }}</td>
+             <td><span class="recommended-range">{{ metric_ranges.get(key, '') }}</span></td>
+           </tr>
+          {% endif %}
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No global metrics available.</p>
+  {% endif %}
+
+<h2>Local Sequence Metrics</h2>
+{% if positional_plot_div %}
+    {# Embed the Plotly graph div #}
+    {{ positional_plot_div | safe }}
+{% else %}
+    {# Fallback message if plot couldn't be generated #}
+    <p>No positional metrics plot available.</p>
+    {# Fallback: Display raw local_metrics table if plot fails #}
+    {% if evaluations.optimized.local_metrics and evaluations.optimized.local_metrics is mapping %} {# Check dict #}
+        <p>Raw local metrics data:</p>
+        <table class="full-width-table">
+             <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+            <tbody>
+             {% for key, value in evaluations.optimized.local_metrics.items() | sort %}
+                <tr><td>{{ key }}</td><td>{% if value is string %}<span title="{{value}}">{{ value[:100] }}{% if value|length > 100 %}...{% endif %}</span>{% else %}{{ value | format_number }}{% endif %}</td></tr>
+             {% endfor %}
+             </tbody>
+        </table>
+    {% elif evaluations.optimized.local_metrics and evaluations.optimized.local_metrics is sequence and evaluations.optimized.local_metrics[0] is mapping %} {# Check list[dict] #}
+        <p>Raw local metrics data:</p>
+        <table class="full-width-table">
+             <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+            <tbody>
+             {% for key, value in evaluations.optimized.local_metrics[0].items() | sort %}
+                 <tr><td>{{ key }}</td><td>{% if value is string %}<span title="{{value}}">{{ value[:100] }}{% if value|length > 100 %}...{% endif %}</span>{% else %}{{ value | format_number }}{% endif %}</td></tr>
+             {% endfor %}
+             </tbody>
+        </table>
+    {% else %}
+         <p>No raw local metrics data available to display.</p>
+    {% endif %}
+{% endif %}
+<h2>Predicted Secondary Structure</h2>
+{% set structure_keys = ['mfe', 'loop', 'start_str', 'longstem'] %}
+{% set has_structure_metrics = structure_keys | select('in', evaluations.optimized.global_metrics) | list | length > 0 %}
+
+{% if has_structure_metrics %}
+<table class="full-width-table">
+    <thead>
+    <tr>
+        <th style="width: 20%;">Metric</th>
+        <th style="width: 45%;">Description</th>
+        <th style="width: 15%;">Value</th>
+        <th style="width: 20%;">Recommended Range</th>
+    </tr>
+    </thead>
+    <tbody>
+    {# Display metrics using passed metadata dictionaries #}
+    {% for key in structure_keys %}
+        {% if key in evaluations.optimized.global_metrics %}
+         <tr>
+            <td>{{ metric_labels.get(key, key) }}</td>
+            <td>{{ metric_descriptions.get(key, key) }}</td>
+            <td>{{ evaluations.optimized.global_metrics[key] | format_number }}</td>
+            {# Display range from dict, show empty string if key missing #}
+            <td><span class="recommended-range">{{ metric_ranges.get(key, '') }}</span></td>
+         </tr>
+         {% endif %}
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+  <p>Predicted secondary structure metrics (MFE, loop, start_str, longstem) not available.</p>
+{% endif %}
+<br> {# Ensure Forna URL is available #}
+{% if metainfo.forna_url %}
+<iframe src="{{ metainfo.forna_url }}"
+    align="center" height="650px" width="100%"
+    seamless='seamless' frameBorder="0" AllowFullScreen></iframe>
+{% elif outputseq and outputseq.seq %}
+<iframe src="https://pub-forna.qbio.io/?id=url/vaxpress&sequence={{outputseq.seq}}"
+    align="center" height="650px" width="100%"
+    style="border:1px solid #ccc;"
+    seamless='seamless' frameBorder="0" AllowFullScreen></iframe>
+{% else %}
+<p>Sequence data unavailable for Forna viewer.</p>
+{% endif %}
+
+
+<footer class="site-footer">
+  <span class="site-footer-owner">Developed by <a href="https://qbio.io/">Chang Lab</a>, Seoul National University.</span>
+   {% if metainfo.vaxpress_version != 'unknown' %}
+   <span class="site-footer-credits">Report generated using VaxPress version {{ metainfo.vaxpress_version }}.</span>
+   {% endif %}
+</footer>
+
+</main>
+</body>
+</html>
