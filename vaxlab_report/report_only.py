@@ -1,10 +1,10 @@
 import argparse
 import os
-# import pandas as pd # checkpoints_list 로딩에 pandas를 사용하지 않는다면 제거 가능
-# import csv # checkpoints_list 로딩에 csv 모듈을 사용하지 않는다면 제거 가능 (현재는 사용 안함)
+# import pandas as pd # Not strictly needed if not using df_checkpoints
+# import csv # Not strictly needed if not using checkpoints_list from tsv
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
+from Bio.Seq import Seq # Not directly used, but often comes with SeqRecord
+from Bio.SeqRecord import SeqRecord # Not directly used for ReportGenerator input
 import time
 import json
 import plotly.graph_objects as go
@@ -12,7 +12,7 @@ import plotly.offline as pyo
 import numpy as np
 from typing import Dict, Any, List, Optional
 import traceback
-import shlex
+import shlex # For command line string reconstruction
 from vaxlab_report.log import initialize_logging, log
 
 try:
@@ -21,7 +21,8 @@ try:
     try:
         from vaxlab_report.evolution_chamber import ExecutionOptions
     except ImportError:
-        class ExecutionOptions: # Fallback definition
+        # Fallback definition if the main one is not found (e.g. simpler environment)
+        class ExecutionOptions:
             def __init__(self, n_iterations=0, n_population=1, n_survivors=1,
                          initial_mutation_rate=0.1, winddown_trigger=15, winddown_rate=0.9,
                          output='.', command_line='', overwrite=False, seed=0, processes=1,
@@ -56,7 +57,7 @@ METRIC_DESCRIPTIONS = {
     "gc": "Ratio of G/C in the sequence", "degscore": "Predicted degradation score (Eterna DegScore)",
     "ucount": "Ratio of U in the sequence", "bicodon": "Codon pair usage bias",
     "repeat": "Length of longest tandem repeat", "longstem": "Count of long stem-loop structures (≥ 27bp)",
-    "start_str": "Base-paired nucleotides near start codon (0 to +14)",
+    "start_str": "Base-paired nucleotides near start codon (-14 to +14)",
     "loop": "Total length of unpaired regions (loops ≥ 2nt)", "mfe": "Minimum free energy of predicted structure",
     "cai": "Codon usage optimality based on species-specific frequencies (0-1 scale).",
     "structure": "Predicted secondary structure (dot-bracket)"
@@ -68,7 +69,7 @@ METRIC_RANGES = {
     "degscore": "Lowest possible", "structure": "N/A"
 }
 
-metainfo = {"vaxpress_version": "unknown", "command_line": " ".join(os.sys.argv), "start_time": time.time(), "forna_url": None }
+metainfo = {"vaxpress_version": "unknown", "command_line": " ".join(shlex.quote(x) for x in os.sys.argv), "start_time": time.time(), "forna_url": None }
 scoring_functions = {} 
 scoring_options = {}
 
@@ -106,7 +107,7 @@ def main():
     if args.preset:
         try:
             preset_data = load_preset(args.preset)
-            scoring_options.update(preset_data.get("scoring", {}))
+            scoring_options.update(preset_data.get("scoring", {})) # global scoring_options
             execution_options_dict_from_preset.update(preset_data.get("execution", {}))
             log.debug(f"Loaded preset '{args.preset}'")
         except Exception as e: print(f"Error loading preset '{args.preset}': {e}"); exit(1)
@@ -130,8 +131,8 @@ def main():
             elif record.id.upper() == "3UTR":
                 utr3_seq_str = seq_upper_u
                 log.info(f"Loaded 3UTR: {record.id}, Length: {len(utr3_seq_str)}")
-            else:
-                if num_potential_cds == 0:
+            else: # Assumed CDS
+                if num_potential_cds == 0: # Take the first non-UTR as CDS
                     temp_cds_seq = seq_upper_u
                     temp_cds_id = record.id
                     temp_cds_desc = record.description
@@ -150,52 +151,37 @@ def main():
     except Exception as e: print(f"Error reading input FASTA file: {e}"); exit(1)
 
     entire_mrna_sequence = utr5_seq_str + cds_seq_str + utr3_seq_str
-    outputseq_dict = {
-        'id': f"{cds_record_id}",
+    outputseq_dict = { # This is for the entire mRNA, which is the primary output of the report
+        'id': f"{cds_record_id}_mRNA_Report",
         'seq': entire_mrna_sequence,
-        'description': f"{cds_record_desc}"
+        'description': f"{cds_record_desc} (Full mRNA: 5UTR-CDS-3UTR)"
     }
     inputseq_dict = {'id': cds_record_id, 'seq': cds_seq_str, 'description': cds_record_desc}
-    log.info(f"Constructed entire mRNA: ID={outputseq_dict['id']}, Length={len(outputseq_dict['seq'])}")
+    log.info(f"Report target mRNA: ID={outputseq_dict['id']}, Length={len(outputseq_dict['seq'])}")
 
+    # Initialize ExecutionOptions with all required arguments
     init_args = {
-        'n_iterations': args.iters, 
-        'n_population': args.population, 
-        'n_survivors': 1,
-        'output': args.output, 
-        'command_line': "report_only execution", 
-        'overwrite': True,
-        'seed': args.random_seed if args.random_seed is not None else 0,
-        'processes': args.cpu_count, 
-        'species': args.species, 
-        'codon_table': "standard",
-        'quiet': True, 
-        'seq_description': outputseq_dict['description'],
-        'initial_mutation_rate': 0.1,
-        'winddown_trigger': 15,
-        'winddown_rate': 0.9,
-        'random_initialization': False,
-        'conservative_start': None,
-        'boost_loop_mutations': "1.5:15",
-        'full_scan_interval': 0, 
-        'protein': False,
-        'print_top_mutants': 0,
-        'addons': [], 
-        'lineardesign_dir': None,
-        'lineardesign_lambda': None,
-        'lineardesign_omit_start': 5,
+        'n_iterations': args.iters, 'n_population': args.population, 'n_survivors': 1,
+        'output': args.output, 'command_line': "report_only execution", 'overwrite': True,
+        'seed': args.random_seed if args.random_seed is not None else int(time.time()), # Ensure seed is int
+        'processes': args.cpu_count, 'species': args.species, 'codon_table': "standard",
+        'quiet': True, 'seq_description': outputseq_dict['description'], # Use entire mRNA description
+        'initial_mutation_rate': 0.1, 'winddown_trigger': 15, 'winddown_rate': 0.9,
+        'random_initialization': False, 'conservative_start': None,
+        'boost_loop_mutations': "1.5:15", 'full_scan_interval': 0, 
+        'protein': False, 'print_top_mutants': 0, 'addons': [], 
+        'lineardesign_dir': None, 'lineardesign_lambda': None, 'lineardesign_omit_start': 5,
         'folding_engine': "vienna", 
     }
-    init_args.update(execution_options_dict_from_preset) # Preset 값으로 덮어쓰기
-    # 명령줄 인자로 다시 덮어쓰기 (우선순위 가장 높음)
-    init_args['output'] = args.output; init_args['n_iterations'] = args.iters;
-    init_args['n_population'] = args.population; init_args['processes'] = args.cpu_count
-    if args.random_seed is not None: init_args['seed'] = args.random_seed
-    init_args['species'] = args.species
+    init_args.update(execution_options_dict_from_preset)
+    # Override with command-line args where applicable
+    init_args.update({k: v for k, v in vars(args).items() if v is not None and k in init_args})
+
 
     try: execution_options = ExecutionOptions(**init_args); log.debug("Execution Options Initialized.")
     except Exception as e: print(f"Error: Failed to initialize ExecutionOptions: {e}"); exit(1)
 
+    # --- Load Evaluation Data from JSON files ---
     cds_eval_path = os.path.join(args.output, "evaluation_result_cds.json")
     mrna_eval_path = os.path.join(args.output, "evaluation_result_mrna.json")
 
@@ -211,137 +197,184 @@ def main():
     with open(mrna_eval_path, 'r') as f:
         mrna_evaluation_result = json.load(f)
 
+    # --- Prepare Global Metrics for the Report ---
+    # Start with mRNA global metrics as the base
     final_global_metrics = mrna_evaluation_result.get("global_metrics", {}).copy()
     cds_global_metrics = cds_evaluation_result.get("global_metrics", {})
+    log.info(f"Base global metrics from mRNA: {final_global_metrics}")
+    log.info(f"Global metrics from CDS: {cds_global_metrics}")
     
-    metrics_to_override_from_cds = {
-        "cai": "cai", 
+    # Define which metrics to take from CDS results
+    # Key: key in cds_global_metrics (from cds_evaluation_result.json)
+    # Value: key to be used in final_global_metrics and METRIC_LABELS
+    metrics_to_source_from_cds = {
+        "cai": "cai",
         "bicodon": "bicodon",
         "start_str": "start_str"
     }
 
-    for cds_key, final_key in metrics_to_override_from_cds.items():
+    for cds_key, target_key in metrics_to_source_from_cds.items():
         if cds_key in cds_global_metrics:
-            final_global_metrics[final_key] = cds_global_metrics[cds_key]
-            log.info(f"Overridden global metric '{final_key}' with value from CDS results: {cds_global_metrics[cds_key]}")
+            value_from_cds = cds_global_metrics[cds_key]
+            if target_key == "cai":
+                try:
+                    log_score_cai = float(value_from_cds)
+                    # Assuming the value in JSON is a log-score, convert to 0-1 scale CAI
+                    # This assumption needs to be verified based on how evaluate_only.py saves CAI for CDS.
+                    # If evaluate_only.py already saves the exp() transformed value, this np.exp() is not needed.
+                    # Given -0.0346..., it's likely a log score.
+                    if -10 < log_score_cai < 10 : # Heuristic to check if it's a log score rather than already 0-1
+                         standard_cai_value = np.exp(log_score_cai)
+                         final_global_metrics[target_key] = standard_cai_value
+                         log.info(f"Global metric '{target_key}' (CAI) from CDS: {standard_cai_value:.4f} (converted from log-score: {log_score_cai:.4f})")
+                    else: # Assume it's already in the desired scale or not a typical log-score for exp transform
+                         final_global_metrics[target_key] = float(value_from_cds)
+                         log.info(f"Global metric '{target_key}' (CAI) from CDS: {value_from_cds} (used as is or float converted)")
+                except (ValueError, TypeError) as e:
+                    final_global_metrics[target_key] = value_from_cds # Fallback
+                    log.warning(f"Could not convert/process CAI value '{value_from_cds}' from CDS. Using as is. Error: {e}")
+            else:
+                final_global_metrics[target_key] = value_from_cds
+                log.info(f"Global metric '{target_key}' from CDS: {value_from_cds}")
         else:
-            log.warning(f"Metric '{cds_key}' not found in CDS global metrics. Cannot use for overriding.")
-            if final_key not in final_global_metrics:
-                 final_global_metrics[final_key] = None
+            log.warning(f"Metric key '{cds_key}' for target '{target_key}' not found in CDS global metrics.")
+            if target_key not in final_global_metrics: # If not even in mRNA metrics
+                 final_global_metrics[target_key] = None
+    
+    # Ensure 'structure' comes from mRNA results for Forna
+    if "structure" in mrna_evaluation_result.get("global_metrics", {}):
+        final_global_metrics["structure"] = mrna_evaluation_result["global_metrics"]["structure"]
+    elif "structure" not in final_global_metrics : # If it wasn't set by CDS override (it shouldn't be)
+        log.warning("Structure (dot-bracket) string not found in mRNA results.")
+        final_global_metrics["structure"] = "" # Default to empty string for Forna
 
+    log.debug(f"Final combined global metrics for report: {final_global_metrics}")
+
+    # Local metrics for plot are from entire mRNA evaluation
     final_local_metrics = mrna_evaluation_result.get("local_metrics", {})
-    log.debug(f"Final global metrics for report: {final_global_metrics}")
 
-    checkpoints_list = [] # --evaluations 옵션 제거로 인해 항상 빈 리스트
-    log.info("Skipping checkpoints.tsv loading as the --evaluations option is removed.")
+    checkpoints_list = [] # --evaluations option removed, so this remains empty or is not used.
+    log.info("Checkpoints.tsv loading skipped as --evaluations option is not used for primary data.")
 
+
+    # --- Prepare Positional Plot for Entire mRNA (excluding CAI) ---
     positional_plot_div = None
     plot_data = {}
     all_positions = []
     
-    log.info("--- Processing Positional Metrics for Plot (mRNA based, CAI excluded) ---")
+    log.info("--- Processing Positional Metrics for Plot (Entire mRNA, CAI excluded) ---")
     metrics_to_process_for_plot: Dict[str, List[List[Any]]] = {}
+
     if isinstance(final_local_metrics, dict):
         for key, metric_data in final_local_metrics.items():
+            # Exclude CAI from the plot as it's not evaluated for the entire mRNA
             if key == 'cai' or METRIC_LABELS.get(key, key).lower() == 'cai':
-                log.info("Excluding 'CAI' from positional plot as it's not available or requested for mRNA context.")
+                log.info(f"Excluding '{key}' from positional plot for entire mRNA.")
                 continue
-            if key.endswith("_error"): continue
+            if key.endswith("_error"): continue # Skip error entries
+
             if isinstance(metric_data, (list, tuple)) and len(metric_data) == 2 and \
-               all(isinstance(el, (list, tuple)) for el in metric_data):
+               all(isinstance(el, (list, np.ndarray, tuple)) for el in metric_data): # Check for [[positions], [values]]
                 positions, values = metric_data
-                if positions and values and len(positions) == len(values):
-                    try:
+                # Ensure positions and values are lists/arrays of numbers
+                if all(isinstance(p, (int, float)) for p in positions) and \
+                   all(isinstance(v, (int, float, type(None))) or np.isnan(v) for v in values if isinstance(v, (int, float, type(None))) or hasattr(v, '__iter__') is False ): # Check for numbers or None/NaN
+                    if len(positions) == len(values):
                         num_positions = [p for p in positions]
-                        num_values = [float(v) if v is not None else float('nan') for v in values]
+                        num_values = [float(v) if v is not None and not (isinstance(v, float) and np.isnan(v)) else np.nan for v in values]
                         metrics_to_process_for_plot[key] = [num_positions, num_values]
-                    except (ValueError, TypeError) as e:
-                         log.warning(f"Could not convert values for local metric '{key}' for plot. Error: {e}")
-                else: log.warning(f"Incomplete data for local metric '{key}' for plot.")
+                    else: log.warning(f"Length mismatch for local metric '{key}' for plot.")
+                else: log.warning(f"Non-numeric data in positions/values for local metric '{key}' for plot.")
             elif metric_data is not None:
                  log.warning(f"Unexpected data format for local metric '{key}' for plot: {type(metric_data)}.")
     else:
         log.warning("final_local_metrics (mRNA) is not a dictionary. Cannot process for positional plot.")
-
-    priority_keys_for_x_axis = ["gc", "degscore"]
+    
+    # Determine base x-axis for the plot
+    priority_keys_for_x_axis = ["gc", "degscore"] # Common metrics with good positional data
     base_metric_key_for_x_axis = None
     for key in priority_keys_for_x_axis:
         if key in metrics_to_process_for_plot:
             base_metric_key_for_x_axis = key; break
-    if not base_metric_key_for_x_axis and metrics_to_process_for_plot:
+    if not base_metric_key_for_x_axis and metrics_to_process_for_plot: # Fallback to first available
         base_metric_key_for_x_axis = list(metrics_to_process_for_plot.keys())[0]
 
     if base_metric_key_for_x_axis:
         all_positions = metrics_to_process_for_plot[base_metric_key_for_x_axis][0]
         log.info(f"Using positions from '{base_metric_key_for_x_axis}' as x-axis for plot ({len(all_positions)} points).")
-    else:
-        log.warning("No valid positional metric data from mRNA results to establish x-axis for the plot.")
-
-    if all_positions:
-        processed_keys_for_plot_data = set()
-        plot_order_preference = ["gc", "degscore"]
+        
+        plot_order_preference = ["gc", "degscore"] # Order of traces in plot
         plot_keys_ordered = [k for k in plot_order_preference if k in metrics_to_process_for_plot] + \
-                            [k for k in metrics_to_process_for_plot if k not in plot_order_preference]
+                            [k for k in metrics_to_process_for_plot if k not in plot_order_preference and k != base_metric_key_for_x_axis]
+        
+        # Add base metric first if not in preference, to ensure it's plotted
+        if base_metric_key_for_x_axis not in plot_keys_ordered:
+            plot_keys_ordered.insert(0, base_metric_key_for_x_axis)
+        
+        unique_plot_keys = []
+        for k in plot_keys_ordered: # Ensure no duplicates if base_metric was also in preference
+            if k not in unique_plot_keys:
+                unique_plot_keys.append(k)
 
-        for key in plot_keys_ordered:
-            if key in processed_keys_for_plot_data: continue
-            
+        for key in unique_plot_keys:
             positions, values = metrics_to_process_for_plot[key]
             plot_label = METRIC_LABELS.get(key, key)
-            plot_values = None
-            current_values_to_process = values
-
-            if list(positions) != list(all_positions):
+            
+            if list(positions) == list(all_positions): # No interpolation needed
+                plot_values = [v if v is not None and not np.isnan(v) else None for v in values]
+            else: # Interpolate to common x-axis
                 log.debug(f"Interpolating values for '{plot_label}' (original key: {key})...")
                 try:
                     pos_arr = np.array(positions)
-                    val_arr = np.array([float(v) if v is not None else np.nan for v in current_values_to_process])
+                    val_arr = np.array([float(v) if v is not None and not np.isnan(v) else np.nan for v in values])
                     valid_mask = ~np.isnan(val_arr)
                     if np.any(valid_mask):
                          interp_positions = pos_arr[valid_mask]
                          interp_values = val_arr[valid_mask]
                          plot_values = np.interp(all_positions, interp_positions, interp_values, left=np.nan, right=np.nan).tolist()
-                    else:
-                         plot_values = [None] * len(all_positions)
+                    else: plot_values = [None] * len(all_positions) # All NaNs
                 except Exception as interp_e:
                     log.error(f"Error during interpolation for '{plot_label}': {interp_e}", exc_info=True)
                     plot_values = [None] * len(all_positions)
-            else:
-                plot_values = [v if v is not None and not np.isnan(v) else None for v in current_values_to_process]
-
+            
             if plot_values is not None: plot_data[plot_label] = plot_values
-            processed_keys_for_plot_data.add(key)
-    
-    if all_positions and plot_data:
-        plot_title = f"Positional Metrics"
-        positional_plot_div = generate_positional_plot(all_positions, plot_data, plot_title)
-        if positional_plot_div: log.info("Positional plot for entire mRNA generated.")
-        else: log.warning("Positional plot generation failed.")
-    else:
-        log.warning("No valid data to generate positional plot for entire mRNA.")
+            else: log.warning(f"Could not determine plot values for '{plot_label}'.")
 
+    if all_positions and plot_data:
+        plot_title = f"Positional Metrics (Entire mRNA)"
+        positional_plot_div = generate_positional_plot(all_positions, plot_data, plot_title)
+        if positional_plot_div: log.info("Positional plot for entire mRNA generated successfully.")
+        else: log.warning("Positional plot generation for entire mRNA failed.")
+    else:
+        log.warning("No valid data or common x-axis to generate positional plot for entire mRNA.")
+
+    # --- Construct Status Dictionary for ReportGenerator ---
     status: Dict[str, Any] = {
-        "checkpoints": checkpoints_list,
+        "checkpoints": checkpoints_list, # Will be empty
         "evaluations": {"optimized": {"global_metrics": final_global_metrics, "local_metrics": final_local_metrics}},
         "positional_plot_div": positional_plot_div
     }
 
-    structure_mrna = final_global_metrics.get("structure", "")
-    seq_for_forna = outputseq_dict['seq']
+    # --- Metainfo Update for Forna ---
+    structure_mrna = final_global_metrics.get("structure", "") # Should be from mRNA
+    seq_for_forna = outputseq_dict['seq'] # Entire mRNA sequence
+    
     metainfo['structure'] = structure_mrna
     metainfo['forna_url'] = f"https://pub-forna.qbio.io/?id=url/vaxpress&sequence={seq_for_forna}&structure={structure_mrna}" if structure_mrna and seq_for_forna else ""
     metainfo['end_time'] = time.time()
 
+    # --- Instantiate ReportGenerator ---
     try:
+        log.debug("Initializing ReportGenerator...")
         generator = ReportGenerator(
             status=status,
-            args=args,
+            args=args, # Pass parsed args
             metainfo=metainfo,
-            scoring_options=scoring_options,
-            execution_options=execution_options,
-            inputseq=inputseq_dict,
-            outputseq=outputseq_dict,
-            scoring_functions=scoring_functions,
+            scoring_options=scoring_options, # Loaded from preset
+            execution_options=execution_options, # Initialized
+            inputseq=inputseq_dict,   # CDS info
+            outputseq=outputseq_dict, # Entire mRNA info
+            scoring_functions=scoring_functions, # Empty, not used by report_only directly
             metric_labels=METRIC_LABELS,
             metric_descriptions=METRIC_DESCRIPTIONS,
             metric_ranges=METRIC_RANGES
@@ -349,8 +382,9 @@ def main():
         log.debug("ReportGenerator initialized.")
     except Exception as e: print(f"Error initializing ReportGenerator: {e}"); traceback.print_exc(); exit(1)
 
+    # --- Generate Report ---
     try:
-        report_html = generator.generate()
+        log.debug("Generating report HTML..."); report_html = generator.generate()
         output_html_path = os.path.join(args.output, "report.html")
         with open(output_html_path, "w", encoding="utf-8") as f: f.write(report_html)
         print(f"✅ Report successfully generated: {output_html_path}")
