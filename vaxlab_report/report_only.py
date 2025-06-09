@@ -56,7 +56,7 @@ METRIC_LABELS = {
 METRIC_DESCRIPTIONS = {
     "gc": "Ratio of G/C in the sequence", "degscore": "Predicted degradation score (Eterna DegScore)",
     "ucount": "Ratio of U in the sequence", "bicodon": "Codon pair usage bias",
-    "repeat": "Length of longest tandem repeat", "longstem": "Count of long stem-loop structures (≥ 27bp)",
+    "repeat": "Total length of all tandem repeats found" , "longstem": "Count of long stem-loop structures (≥ 27bp)",
     "start_str": "Base-paired nucleotides near start codon (-14 to +14)",
     "loop": "Total length of unpaired regions (loops ≥ 2nt)", "mfe": "Minimum free energy of predicted structure",
     "cai": "Codon usage optimality based on species-specific frequencies (0-1 scale).",
