@@ -57,7 +57,6 @@ python vaxlab_report/evaluate_only.py \
   -i path/to/input.fasta \
   -o output_directory \
   --preset path/to/parameters.json \
-  --species "Homo sapiens" \
   --token "YOUR_IDT_API_TOKEN"  # Optional: for IDT complexity scoring
 ```
 
