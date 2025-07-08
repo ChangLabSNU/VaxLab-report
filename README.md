@@ -32,19 +32,30 @@ VaxLab-report evaluates mRNA or RNA sequences using diverse biophysical and sequ
 
 ## ⚙️ Installation
 
+### Install from Source
+
 ```bash
 # 1. Clone the repository
 git clone https://github.com/ChangLabSNU/VaxLab-report.git
 cd VaxLab-report
 
-# 2. Set up the environment (Python 3.9)
-conda create -y -n vaxpress_report python=3.9.22
+# 2. Set up the environment (Python 3.9+)
+conda create -y -n vaxpress_report python=3.9
 conda activate vaxpress_report
 
 # 3. Install required packages
 conda install -y -c bioconda viennarna     # ViennaRNA for structure prediction
-pip install -e .                           # Installs Python dependencies
+pip install biopython jinja2 requests      # Core dependencies
 ```
+
+
+**Dependencies:**
+- Python 3.9+
+- ViennaRNA (for RNA secondary structure prediction)
+- BioPython (for sequence handling)
+- Jinja2 (for HTML report templating)
+- Requests (for IDT API integration)
+- NumPy (for numerical computations)
 
 ---
 
@@ -78,6 +89,59 @@ python vaxlab_report/report_only.py \
 
 **Generates:**
 - `report.html`
+
+---
+
+## 🧪 Testing
+
+### Regression Tests
+
+Run automated regression tests to ensure the pipeline works correctly:
+
+```bash
+python test_regression.py
+```
+
+**Test Coverage:**
+- ✅ `evaluate_only.py` - CDS and mRNA sequence evaluation
+- ✅ `report_only.py` - HTML report generation  
+- ✅ Forna visualization - Both qbio and tbi server options
+- ✅ File output validation - Ensures all expected files are created
+- ✅ JSON structure validation - Checks evaluation result format
+
+**Test Input:** Uses `test_data.fasta` (HA sequence with 5'UTR and 3'UTR)
+
+**Expected Output:**
+```
+🧪 Running VaxLab-report regression tests...
+
+Testing evaluate_only.py...
+✅ evaluate_only.py test passed
+
+Testing report_only.py...
+✅ report_only.py test passed
+
+Testing report_only.py with --forna option...
+✅ Forna options test passed
+
+📊 Test Results: 3/3 tests passed
+🎉 All regression tests passed!
+```
+
+### Manual Testing
+
+For manual testing with your own data:
+
+```bash
+# Test evaluation only
+python vaxlab_report/evaluate_only.py -i your_file.fasta -o test_output/
+
+# Test with IDT token
+python vaxlab_report/evaluate_only.py -i your_file.fasta -o test_output/ --token "YOUR_TOKEN"
+
+# Test report generation
+python vaxlab_report/report_only.py -i your_file.fasta -o test_output/ --forna qbio
+```
 
 ---
 
@@ -141,6 +205,33 @@ Use a JSON file to customize metrics and evaluation parameters:
 | `checkpoints.tsv` | Summary of global metrics |
 | `report.html` | Interactive report |
 | `evaluate_only_log.txt` | Execution log |
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**Import Error: No module named 'RNA'**
+```bash
+# Install ViennaRNA
+conda install -c bioconda viennarna
+```
+
+**IDT API Authentication Failed**
+- Check your IDT API token is valid
+- Obtain a new token from IDT if expired
+- Re-run evaluation with `--token "YOUR_NEW_TOKEN"`
+
+**Structure Visualization Not Working**
+- Use `--forna qbio` or `--forna tbi` to enable visualization
+- Check internet connectivity for Forna server access
+
+**Test Failures**
+```bash
+# Run tests with verbose output
+python test_regression.py 2>&1 | tee test_log.txt
+```
 
 ---
 

@@ -15,13 +15,10 @@ import copy
 
 from vaxlab_report import config, scoring, __version__
 from vaxlab_report.sequence_evaluator import SequenceEvaluator
-try:
-    from vaxlab_report.evolution_chamber import ExecutionOptions
-except ImportError as e:
-     print(f"FATAL ERROR: Failed to import ExecutionOptions from vaxlab_report.evolution_chamber: {e}")
-     print("        Please ensure this module and class exist and the Python path is correct.")
-     exit(1)
-from vaxlab_report.mutant_generator import MutantGenerator
+from collections import namedtuple
+
+# Minimal ExecutionOptions for evaluate_only.py
+ExecutionOptions = namedtuple('ExecutionOptions', ['folding_engine'])
 from vaxlab_report.presets import load_preset
 from vaxlab_report.log import initialize_logging, log
 from vaxlab_report.scoring.idt_complexity import evaluate_idt_gblock_complexity
@@ -153,18 +150,8 @@ def run_evaluation(
             current_scoring_options["active_scores"][key_to_remove] = False
             log.info(f"Set active_score for '{key_to_remove}' to False in current_scoring_options.")
 
-    log.info("Initializing MutantGenerator for this run...")
-    try:
-        # MutantGenerator는 항상 원본 CDS 서열로 초기화
-        mutantgen = MutantGenerator(original_cds_sequence_for_mutgen, random_state_obj)
-        log.info("MutantGenerator initialized successfully.")
-    except ValueError as ve:
-        log.critical(f"ValueError during MutantGenerator initialization for {output_suffix} with sequence length {len(original_cds_sequence_for_mutgen)}: {ve}", exc_info=True)
-        log.critical("This might indicate the original CDS sequence is not valid (e.g., not multiple of 3).")
-        return
-    except Exception as e:
-        log.critical(f"Failed to initialize MutantGenerator for {output_suffix}: {e}", exc_info=True)
-        return
+    # MutantGenerator not needed for evaluation-only mode
+    mutantgen = None
 
     log.info("Initializing SequenceEvaluator for this run...")
     try:
@@ -173,7 +160,7 @@ def run_evaluation(
             current_scoring_funcs,
             current_scoring_options,
             execopts,
-            mutantgen, # 원본 CDS로 초기화된 mutantgen
+            mutantgen, # None for evaluation-only mode
             args_namespace.species,
             original_cds_len, # 6번째 위치 인자로 원본 CDS 길이 전달
             quiet=False
@@ -353,9 +340,9 @@ def main():
     cds_description = seq_meta["CDS"]["description"]
     original_cds_length = len(cds_sequence_str)
     
-    # CDS 길이 유효성 검사 (MutantGenerator를 위해)
+    # CDS 길이 유효성 검사
     if original_cds_length % 3 != 0:
-        log.warning(f"Identified CDS sequence ('{cds_id}') length ({original_cds_length}) is not a multiple of 3. This might cause issues with MutantGenerator or CDS-specific metrics.")
+        log.warning(f"Identified CDS sequence ('{cds_id}') length ({original_cds_length}) is not a multiple of 3. This might cause issues with CDS-specific metrics.")
 
 
     current_seed = args.seed if args.seed is not None else random.randint(0, 2**32 - 1)
@@ -385,38 +372,18 @@ def main():
         log.error(f"Error discovering scoring functions: {e}", exc_info=True)
         base_scoring_funcs = {}
 
-    log.info("Initializing ExecutionOptions...")
+    log.info("Initializing minimal ExecutionOptions for evaluation...")
     try:
-        execopts_dict = {
-            'n_iterations': 0, 'n_population': 1, 'n_survivors': 1,
-            'output': args.output,
-            'command_line': " ".join(shlex.quote(x) for x in os.sys.argv),
-            'overwrite': args.overwrite, 'seed': current_seed, 
-            'processes': execution_options_from_preset.get('processes', 1),
-            'species': args.species, 'codon_table': args.codon_table,
-            'quiet': False, 'seq_description': cds_description,
-            'print_top_mutants': 0, 'folding_engine': args.folding_engine,
-            'addons': addon_paths,
-            # ... (rest of execopts_dict as before) ...
-            'initial_mutation_rate': execution_options_from_preset.get('initial_mutation_rate', 0.1),
-            'winddown_trigger': execution_options_from_preset.get('winddown_trigger', 15),
-            'winddown_rate': execution_options_from_preset.get('winddown_rate', 0.9),
-            'random_initialization': execution_options_from_preset.get('random_initialization', False),
-            'conservative_start': execution_options_from_preset.get('conservative_start', None),
-            'boost_loop_mutations': execution_options_from_preset.get('boost_loop_mutations', "1.5:15"),
-            'full_scan_interval': execution_options_from_preset.get('full_scan_interval', 0),
-            'protein': execution_options_from_preset.get('protein', False),
-            'lineardesign_dir': execution_options_from_preset.get('lineardesign_dir', None),
-            'lineardesign_lambda': execution_options_from_preset.get('lineardesign_lambda', None),
-            'lineardesign_omit_start': execution_options_from_preset.get('lineardesign_omit_start', 5),
-        }
-        execopts = ExecutionOptions(**execopts_dict)
+        # Only folding_engine is needed for SequenceEvaluator
+        execopts = ExecutionOptions(folding_engine=args.folding_engine)
         log.info("ExecutionOptions initialized successfully.")
     except Exception as e:
          log.critical(f"Error during ExecutionOptions initialization: {e}", exc_info=True)
          exit(1)
 
-    max_workers = execopts.processes if execopts.processes > 0 else os.cpu_count() or 1
+    max_workers = execution_options_from_preset.get('processes', 1)
+    if max_workers <= 0:
+        max_workers = os.cpu_count() or 1
     log.info(f"Using ThreadPoolExecutor with max_workers={max_workers}")
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
 

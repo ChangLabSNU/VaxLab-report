@@ -25,6 +25,7 @@
 
 from . import ScoringFunction
 from ..data import codon_usage_data
+from ..codon_utils import MinimalCodonTable
 import numpy as np
 
 class CodonAdaptationIndexFitness(ScoringFunction):
@@ -35,7 +36,7 @@ class CodonAdaptationIndexFitness(ScoringFunction):
 
     use_annotation_on_zero_weight = True
 
-    requires = ['mutantgen', 'species']
+    requires = ['species']
     arguments = [
         ('weight', dict(
             type=float, default=0, metavar='WEIGHT',
@@ -43,10 +44,10 @@ class CodonAdaptationIndexFitness(ScoringFunction):
         )),
     ]
 
-    def __init__(self, weight, _length_cds, _species, _mutantgen):
+    def __init__(self, weight, _length_cds, _species):
         self.weight = weight
         self.species = _species
-        self.mutantgen = _mutantgen
+        self.codon_table = MinimalCodonTable()
         self.initialize_codon_scores()
 
     def initialize_codon_scores(self):
@@ -55,7 +56,7 @@ class CodonAdaptationIndexFitness(ScoringFunction):
 
         codon_usage = codon_usage_data.codon_usage[self.species]
         scores = {}
-        for aa, codons in self.mutantgen.aa2codons.items():
+        for aa, codons in self.codon_table.aa2codons.items():
             codons = sorted(codons)
             freqs = np.array([codon_usage[c] for c in codons])
             scores.update(dict(zip(codons, np.log(freqs / freqs.max()))))

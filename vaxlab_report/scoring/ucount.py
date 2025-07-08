@@ -68,5 +68,17 @@ class UCountFitness(ScoringFunction):
         return {'ucount': scores}, {'ucount': percentages}
 
     def evaluate_local(self, seq):
-        percentage_str = self._calculate_percentages(seq)
-        return {'ucount': percentage_str}
+        # Calculate positional U content for local metrics
+        window_size = 50
+        stride = 5
+        positions = []
+        u_ratios = []
+        
+        for i in range(0, len(seq) - window_size + 1, stride):
+            window = seq[i:i + window_size]
+            u_count = window.upper().count('U')
+            u_ratio = u_count / len(window)
+            positions.append(i + window_size // 2)  # Center of window
+            u_ratios.append(u_ratio)
+        
+        return {'ucount': (positions, u_ratios)}

@@ -14,15 +14,12 @@ import argparse
 from typing import Dict, Any, List, Optional, Mapping
 from vaxlab_report.log import log # Import log
 
-# ExecutionOptions 클래스 import 시도 및 예외 처리
-try:
-    from vaxlab_report.evolution_chamber import ExecutionOptions
-except ImportError:
-    log.warning("Could not import ExecutionOptions from vaxlab_report.evolution_chamber. Using placeholder.")
-    class ExecutionOptions:
-        """Placeholder for ExecutionOptions if import fails."""
-        def __init__(self, **kwargs): self._options = kwargs
-        def to_dict(self) -> Dict[str, Any]: return self._options
+# Simple ExecutionOptions placeholder for reporting
+from collections import namedtuple
+ExecutionOptions = namedtuple('ExecutionOptions', [
+    'output', 'command_line', 'overwrite', 'seed', 'processes', 
+    'species', 'codon_table', 'quiet', 'folding_engine'
+])
 
 class TemplateFiltersMixin:
     """ Mixin class providing Jinja2 template filters. """
@@ -116,6 +113,8 @@ class ReportGenerator:
             'outputseq': self.outputseq,
             'evaluations': evaluations_data if isinstance(evaluations_data, dict) else {},
             'positional_plot_div': self.status.get('positional_plot_div', None),
+            'idt_complexity_html': self.status.get('idt_complexity_html', ''),
+            'idt_token_error': self.status.get('idt_token_error', False),
             'metric_labels': self.metric_labels,
             'metric_descriptions': self.metric_descriptions,
             'metric_ranges': self.metric_ranges

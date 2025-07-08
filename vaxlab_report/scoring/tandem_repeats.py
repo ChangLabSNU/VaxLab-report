@@ -37,13 +37,13 @@ class TandemRepeatsFitness(ScoringFunction):
          dict(type=float, default=1.0, metavar='WEIGHT',
               help='scoring weight for tandem repeats (default: 1.0)')),
         ('min-repeats',
-         dict(type=int, default=2, metavar='N',
+         dict(type=int, default=3, metavar='N',
               help='minimum number of repeats to be considered as a tandem '
-                   'repeat (default: 2)')),
+                   'repeat (default: 3)')),
         ('min-length',
-         dict(type=int, default=10, metavar='LENGTH',
+         dict(type=int, default=20, metavar='LENGTH',
               help='minimum length of repeats to be considered as a tandem '
-                   'repeat (default: 10)')),
+                   'repeat (default: 20)')),
     ]
 
     penalty_metric_flags = {'repeat': 'r'}

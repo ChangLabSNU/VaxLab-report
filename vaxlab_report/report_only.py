@@ -18,32 +18,12 @@ from vaxlab_report.log import initialize_logging, log
 try:
     from vaxlab_report.reporting import ReportGenerator
     from vaxlab_report.presets import load_preset
-    try:
-        from vaxlab_report.evolution_chamber import ExecutionOptions
-    except ImportError:
-        # Fallback definition if the main one is not found (e.g. simpler environment)
-        class ExecutionOptions:
-            def __init__(self, n_iterations=0, n_population=1, n_survivors=1,
-                         initial_mutation_rate=0.1, winddown_trigger=15, winddown_rate=0.9,
-                         output='.', command_line='', overwrite=False, seed=0, processes=1,
-                         random_initialization=False, conservative_start=None,
-                         boost_loop_mutations="1.5:15", full_scan_interval=300,
-                         species="Homo sapiens", codon_table="standard", protein=False, quiet=True,
-                         seq_description=None, print_top_mutants=0, addons=None,
-                         lineardesign_dir=None, lineardesign_lambda=None, lineardesign_omit_start=5,
-                         folding_engine="vienna", **kwargs):
-                self.n_iterations=n_iterations; self.n_population=n_population; self.n_survivors=n_survivors
-                self.initial_mutation_rate=initial_mutation_rate; self.winddown_trigger=winddown_trigger; self.winddown_rate=winddown_rate
-                self.output=output; self.command_line=command_line; self.overwrite=overwrite; self.seed=seed; self.processes=processes
-                self.random_initialization=random_initialization; self.conservative_start=conservative_start
-                self.boost_loop_mutations=boost_loop_mutations; self.full_scan_interval=full_scan_interval
-                self.species=species; self.codon_table=codon_table; self.protein=protein; self.quiet=quiet
-                self.seq_description=seq_description; self.print_top_mutants=print_top_mutants
-                self.addons=addons if addons is not None else []; self.lineardesign_dir=lineardesign_dir
-                self.lineardesign_lambda=lineardesign_lambda; self.lineardesign_omit_start=lineardesign_omit_start
-                self.folding_engine=folding_engine; self._kwargs=kwargs
-            def to_dict(self) -> Dict[str, Any]:
-                data = self.__dict__.copy(); data.pop('_kwargs', None); return data
+    # Minimal ExecutionOptions for report_only.py
+    from collections import namedtuple
+    ExecutionOptions = namedtuple('ExecutionOptions', [
+        'output', 'command_line', 'overwrite', 'seed', 'processes', 
+        'species', 'codon_table', 'quiet', 'folding_engine'
+    ])
 except ImportError as e:
     print(f"Error importing vaxlab_report components: {e}"); exit(1)
 
@@ -204,12 +184,10 @@ def main():
     initialize_logging(log_file, quiet=False)
     log.debug(f"Parsed args: {args}")
 
-    execution_options_dict_from_preset = {}
     if args.preset:
         try:
             preset_data = load_preset(args.preset)
             scoring_options.update(preset_data.get("scoring", {})) # global scoring_options
-            execution_options_dict_from_preset.update(preset_data.get("execution", {}))
             log.debug(f"Loaded preset '{args.preset}'")
         except Exception as e: print(f"Error loading preset '{args.preset}': {e}"); exit(1)
 
@@ -260,27 +238,23 @@ def main():
     inputseq_dict = {'id': cds_record_id, 'seq': cds_seq_str, 'description': cds_record_desc}
     log.info(f"Report target mRNA: ID={outputseq_dict['id']}, Length={len(outputseq_dict['seq'])}")
 
-    # Initialize ExecutionOptions with all required arguments
-    init_args = {
-        'n_iterations': args.iters, 'n_population': args.population, 'n_survivors': 1,
-        'output': args.output, 'command_line': "report_only execution", 'overwrite': True,
-        'seed': args.random_seed if args.random_seed is not None else int(time.time()), # Ensure seed is int
-        'processes': args.cpu_count, 'species': args.species, 'codon_table': "standard",
-        'quiet': True, 'seq_description': outputseq_dict['description'], # Use entire mRNA description
-        'initial_mutation_rate': 0.1, 'winddown_trigger': 15, 'winddown_rate': 0.9,
-        'random_initialization': False, 'conservative_start': None,
-        'boost_loop_mutations': "1.5:15", 'full_scan_interval': 0, 
-        'protein': False, 'print_top_mutants': 0, 'addons': [], 
-        'lineardesign_dir': None, 'lineardesign_lambda': None, 'lineardesign_omit_start': 5,
-        'folding_engine': "vienna", 
-    }
-    init_args.update(execution_options_dict_from_preset)
-    # Override with command-line args where applicable
-    init_args.update({k: v for k, v in vars(args).items() if v is not None and k in init_args})
-
-
-    try: execution_options = ExecutionOptions(**init_args); log.debug("Execution Options Initialized.")
-    except Exception as e: print(f"Error: Failed to initialize ExecutionOptions: {e}"); exit(1)
+    # Initialize minimal ExecutionOptions for report generation
+    try:
+        execution_options = ExecutionOptions(
+            output=args.output,
+            command_line="report_only execution", 
+            overwrite=True,
+            seed=args.random_seed if args.random_seed is not None else int(time.time()),
+            processes=args.cpu_count,
+            species=args.species,
+            codon_table="standard",
+            quiet=True,
+            folding_engine="vienna"
+        )
+        log.debug("Execution Options Initialized.")
+    except Exception as e:
+        print(f"Error: Failed to initialize ExecutionOptions: {e}")
+        exit(1)
 
     # --- Load Evaluation Data from JSON files ---
     cds_eval_path = os.path.join(args.output, "evaluation_result_cds.json")

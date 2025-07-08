@@ -18,11 +18,13 @@ lib64/
 parts/
 sdist/
 var/
+wheel/
 pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.whl
 MANIFEST
 
 # PyInstaller
@@ -121,3 +123,17 @@ dmypy.json
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Development/testing files
+test_output/
+*.fasta.bak
+*.json.bak
+*.tsv.bak
+test_log.txt
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
