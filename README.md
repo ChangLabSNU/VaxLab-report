@@ -94,10 +94,10 @@ python vaxlab_report/evaluate_only.py \
   --token "YOUR_IDT_API_TOKEN"
 ```
 
-**IDT Score Interpretation:**
-- ≤5: Good 😊 (synthesis ready)
-- 5-15: Caution ⚠️ (may need optimization)
-- ≥15: Poor 😞 (difficult to synthesize)
+**IDT Complexity Score Interpretation:**
+- <7: Low 😊 (synthesis ready)
+- 7-20: Moderate ⚠️ (may need optimization)
+- ≥20: High 😞 (difficult to synthesize)
 
 ### Forna Structure Visualization
 
