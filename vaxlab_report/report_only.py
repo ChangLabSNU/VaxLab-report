@@ -86,9 +86,27 @@ def generate_idt_complexity_table(idt_data: List[Dict[str, Any]]) -> str:
     if not idt_data:
         return ""
     
-    html = """
+    # Calculate total IDT complexity score
+    total_score = sum(float(item.get('Score', 0)) for item in idt_data)
+    
+    # Determine overall status based on total score
+    if total_score < 7:
+        total_emoji = "😊"
+        total_status_class = "text-success"
+        total_status = "Low"
+    elif 7 <= total_score < 20:
+        total_emoji = "⚠️"
+        total_status_class = "text-warning"
+        total_status = "Moderate"
+    else:
+        total_emoji = "😞"
+        total_status_class = "text-danger"
+        total_status = "High"
+    
+    html = f"""
     <div class="idt-complexity-section" style="margin-top: 30px;">
         <h3>IDT Complexity Analysis</h3>
+        <p style="margin-bottom: 15px;"><strong>IDT Complexity Score: <span class="{total_status_class}">{total_score:.1f} {total_emoji} ({total_status})</span></strong></p>
         <table class="table table-striped table-hover" style="width: 100%;">
             <thead>
                 <tr>
@@ -97,6 +115,7 @@ def generate_idt_complexity_table(idt_data: List[Dict[str, Any]]) -> str:
                     <th>Status</th>
                     <th>Actual Value</th>
                     <th>Description</th>
+                    <th>Solution</th>
                 </tr>
             </thead>
             <tbody>
@@ -108,11 +127,20 @@ def generate_idt_complexity_table(idt_data: List[Dict[str, Any]]) -> str:
         actual_value = item.get('ActualValue', 'N/A')
         display_text = item.get('DisplayText', 'N/A')
         
+        # Split description and solution
+        if 'Solution:' in display_text:
+            description_part, solution_part = display_text.split('Solution:', 1)
+            description = description_part.strip()
+            solution = solution_part.strip()
+        else:
+            description = display_text
+            solution = 'N/A'
+        
         # Determine emoji based on score
-        if score <= 5:
+        if score < 6:
             emoji = "😊"
             status_class = "text-success"
-        elif 5 < score < 15:
+        elif 6 <= score < 15:
             emoji = "⚠️"
             status_class = "text-warning"
         else:
@@ -125,7 +153,8 @@ def generate_idt_complexity_table(idt_data: List[Dict[str, Any]]) -> str:
                     <td>{score:.1f}</td>
                     <td class="{status_class}">{emoji}</td>
                     <td>{actual_value}</td>
-                    <td>{display_text}</td>
+                    <td>{description}</td>
+                    <td>{solution}</td>
                 </tr>
         """
     
@@ -134,7 +163,8 @@ def generate_idt_complexity_table(idt_data: List[Dict[str, Any]]) -> str:
         </table>
         <p class="text-muted">
             <small>
-                Score interpretation: ≤5 = Good 😊 | 5-15 = Caution ⚠️ | ≥15 = Poor 😞
+                Individual score interpretation: &lt;6 = Good 😊 | 6-15 = Caution ⚠️ | ≥15 = Poor 😞<br>
+                Total complexity interpretation: &lt;7 = Low 😊 | 7-20 = Moderate ⚠️ | ≥20 = High 😞
             </small>
         </p>
     </div>
