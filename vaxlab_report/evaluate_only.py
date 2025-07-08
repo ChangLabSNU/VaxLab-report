@@ -24,6 +24,46 @@ except ImportError as e:
 from vaxlab_report.mutant_generator import MutantGenerator
 from vaxlab_report.presets import load_preset
 from vaxlab_report.log import initialize_logging, log
+from vaxlab_report.scoring.idt_complexity import evaluate_idt_gblock_complexity
+
+
+def evaluate_idt_complexity_for_sequence(sequence: str, sequence_id: str, idt_token: str, log) -> Optional[Dict[str, Any]]:
+    """
+    Evaluate IDT complexity for a given sequence.
+    
+    Args:
+        sequence: RNA sequence to evaluate
+        sequence_id: ID for the sequence
+        idt_token: IDT API access token
+        log: Logger instance
+    
+    Returns:
+        Dictionary with IDT complexity results or None if evaluation fails
+    """
+    if not idt_token:
+        log.info("IDT API token not provided. Skipping IDT complexity evaluation.")
+        return None
+    
+    # Convert RNA to DNA for IDT API
+    dna_sequence = sequence.replace('U', 'T')
+    
+    try:
+        log.info(f"Evaluating IDT complexity for {sequence_id}...")
+        results = evaluate_idt_gblock_complexity(idt_token, {sequence_id: dna_sequence})
+        
+        if results and len(results) > 0:
+            # Process the first result
+            result = results[0]
+            log.info(f"IDT complexity evaluation successful for {sequence_id}")
+            return result
+        else:
+            log.warning(f"No IDT complexity results returned for {sequence_id}")
+            return None
+            
+    except Exception as e:
+        log.error(f"Error evaluating IDT complexity for {sequence_id}: {e}", exc_info=True)
+        # Return error information instead of None
+        return {"error": str(e)}
 
 
 def convert_numpy_to_list(data: Any) -> Any:
@@ -67,7 +107,8 @@ def run_evaluation(
     args_namespace: argparse.Namespace,
     random_state_obj: random.Random,
     original_cds_len: int, # SequenceEvaluator에 전달될 원본 CDS 길이
-    executor: ThreadPoolExecutor
+    executor: ThreadPoolExecutor,
+    idt_token: Optional[str] = None
 ):
     """
     Runs a single evaluation pipeline for a given sequence and configuration.
@@ -156,6 +197,18 @@ def run_evaluation(
             else: log.warning("SequenceEvaluator did not return global metrics.")
             if local_metrics_list: local_metrics_output = local_metrics_list[0]
             else: log.warning("SequenceEvaluator did not return local metrics.")
+            
+            # Add structure information from foldings to global_metrics
+            if foldings_list and len(foldings_list) > 0 and foldings_list[0]:
+                folding_data = foldings_list[0]
+                if isinstance(folding_data, dict) and 'folding' in folding_data:
+                    global_metrics['structure'] = folding_data['folding']
+                    log.info(f"Added structure information to global_metrics (length: {len(folding_data['folding'])})")
+                else:
+                    log.warning("Folding data does not contain 'folding' key")
+            else:
+                log.warning("No folding information available to add to global_metrics")
+            
             evaluation_successful = True
             log.info("Evaluation process completed for this run.")
         else:
@@ -167,14 +220,26 @@ def run_evaluation(
         global_metrics = {'error': f'Evaluation exception: {e}'}
         local_metrics_output = {'error': f'Evaluation exception: {e}'}
 
+    # Evaluate IDT complexity if token is provided
+    idt_complexity_result = None
+    if idt_token and output_suffix == "_cds":  # Only evaluate IDT complexity for CDS
+        idt_complexity_result = evaluate_idt_complexity_for_sequence(
+            sequence_to_evaluate,
+            sequence_id,
+            idt_token,
+            log
+        )
+    
     log.debug("Converting results for JSON serialization...")
     try:
         serializable_global_metrics = convert_numpy_to_list(global_metrics)
         serializable_local_metrics = convert_numpy_to_list(local_metrics_output)
+        serializable_idt_complexity = convert_numpy_to_list(idt_complexity_result) if idt_complexity_result else None
     except Exception as e:
          log.error(f"Error converting evaluation results for JSON ({output_suffix}): {e}", exc_info=True)
          serializable_global_metrics = {'error': f'Failed to convert global metrics: {e}'}
          serializable_local_metrics = {'error': f'Failed to convert local metrics: {e}'}
+         serializable_idt_complexity = None
 
     evaluation_result_path: str = os.path.join(args_namespace.output, f"evaluation_result{output_suffix}.json")
     log.info(f"Preparing to save evaluation results to {evaluation_result_path}")
@@ -188,6 +253,10 @@ def run_evaluation(
         "global_metrics": serializable_global_metrics,
         "local_metrics": serializable_local_metrics,
     }
+    
+    # Add IDT complexity results if available
+    if serializable_idt_complexity is not None:
+        evaluation_result["idt_complexity"] = serializable_idt_complexity
     if output_suffix == "_mrna":
         evaluation_result["notes"] = "Evaluation for entire mRNA (5UTR-CDS-3UTR)"
 
@@ -229,11 +298,12 @@ def main():
     parser.add_argument("-i", "--input", required=True, help="Input FASTA file (can contain CDS, 5UTR, 3UTR)")
     parser.add_argument("-o", "--output", required=True, help="Output directory for results")
     parser.add_argument("--preset", required=False, help="Preset JSON file path")
-    parser.add_argument("--folding-engine", default="vienna", choices=["vienna", "linearfold"], help="RNA folding engine")
-    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
-    parser.add_argument("--seed", type=int, default=None, help="Random seed (optional)")
-    parser.add_argument("--codon-table", default="standard", help="Codon table name")
-    parser.add_argument("--species", default="Homo sapiens", help="Species for calculations")
+    parser.add_argument("--folding-engine", default="vienna", choices=["vienna", "linearfold"], help=argparse.SUPPRESS)
+    parser.add_argument("--overwrite", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--seed", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--codon-table", default="standard", help=argparse.SUPPRESS)
+    parser.add_argument("--species", default="Homo sapiens", help=argparse.SUPPRESS)
+    parser.add_argument("--token", type=str, default=None, help="IDT API access token for complexity score")
     args = parser.parse_args()
 
     os.makedirs(args.output, exist_ok=True)
@@ -364,7 +434,8 @@ def main():
             args_namespace=args,
             random_state_obj=random_state,
             original_cds_len=original_cds_length,
-            executor=executor
+            executor=executor,
+            idt_token=args.token
         )
 
         if "5UTR" in sequences and "3UTR" in sequences:
@@ -390,7 +461,8 @@ def main():
                 args_namespace=args,
                 random_state_obj=random_state,
                 original_cds_len=original_cds_length, # SequenceEvaluator에는 원본 CDS 길이 전달
-                executor=executor
+                executor=executor,
+                idt_token=args.token
             )
         elif "5UTR" in sequences or "3UTR" in sequences:
             log.warning("One UTR found but not both (5UTR and 3UTR needed). Skipping entire mRNA evaluation.")

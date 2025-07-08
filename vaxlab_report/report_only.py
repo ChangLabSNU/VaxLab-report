@@ -64,7 +64,7 @@ METRIC_DESCRIPTIONS = {
 }
 METRIC_RANGES = {
     "gc": "0.4–0.6", "ucount": "Lowest possible", "bicodon": "Maximize (≥ 0)",
-    "repeat": "< 15-20 nt", "longstem": "0–1", "start_str": "≤ 3 bp paired",
+    "repeat": "< 20 nt", "longstem": "0–1", "start_str": "≤ 3 bp paired",
     "loop": "≤ 100 per kb", "mfe": "≤ –30 kcal/mol per kb", "cai": "Maximize (closer to 1)",
     "degscore": "Lowest possible", "structure": "N/A"
 }
@@ -72,6 +72,76 @@ METRIC_RANGES = {
 metainfo = {"vaxpress_version": "unknown", "command_line": " ".join(shlex.quote(x) for x in os.sys.argv), "start_time": time.time(), "forna_url": None }
 scoring_functions = {} 
 scoring_options = {}
+
+def generate_idt_complexity_table(idt_data: List[Dict[str, Any]]) -> str:
+    """
+    Generate HTML table for IDT complexity results with emoji visualization.
+    
+    Args:
+        idt_data: List of IDT complexity items
+    
+    Returns:
+        HTML string for the table
+    """
+    if not idt_data:
+        return ""
+    
+    html = """
+    <div class="idt-complexity-section" style="margin-top: 30px;">
+        <h3>IDT Complexity Analysis</h3>
+        <table class="table table-striped table-hover" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Score</th>
+                    <th>Status</th>
+                    <th>Actual Value</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+    
+    for item in idt_data:
+        name = item.get('Name', 'Unknown')
+        score = float(item.get('Score', 0))
+        actual_value = item.get('ActualValue', 'N/A')
+        display_text = item.get('DisplayText', 'N/A')
+        
+        # Determine emoji based on score
+        if score <= 5:
+            emoji = "😊"
+            status_class = "text-success"
+        elif 5 < score < 15:
+            emoji = "⚠️"
+            status_class = "text-warning"
+        else:
+            emoji = "😞"
+            status_class = "text-danger"
+        
+        html += f"""
+                <tr>
+                    <td>{name}</td>
+                    <td>{score:.1f}</td>
+                    <td class="{status_class}">{emoji}</td>
+                    <td>{actual_value}</td>
+                    <td>{display_text}</td>
+                </tr>
+        """
+    
+    html += """
+            </tbody>
+        </table>
+        <p class="text-muted">
+            <small>
+                Score interpretation: ≤5 = Good 😊 | 5-15 = Caution ⚠️ | ≥15 = Poor 😞
+            </small>
+        </p>
+    </div>
+    """
+    
+    return html
+
 
 def generate_positional_plot(positions: list, values: dict, title: str) -> Optional[str]:
     if not positions or not values: log.warning("No data for positional plot."); return None
@@ -91,12 +161,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", required=True, help="Input FASTA file (containing 5UTR, CDS, 3UTR)")
     parser.add_argument("-o", "--output", required=True, help="Output directory (must contain evaluation_result_cds.json and evaluation_result_mrna.json)")
-    parser.add_argument("--preset", help="Preset JSON file for options")
-    parser.add_argument('--iters', type=int, default=0, help='Placeholder (n_iterations)')
-    parser.add_argument('--population', type=int, default=0, help='Placeholder (n_population)')
-    parser.add_argument('--cpu-count', type=int, default=1, help='Placeholder (processes)')
-    parser.add_argument('--random-seed', type=int, default=None, help='Placeholder (seed)')
-    parser.add_argument('--species', type=str, default='Homo sapiens', help='Species for CAI calculation')
+    parser.add_argument("--preset", help=argparse.SUPPRESS)
+    parser.add_argument('--iters', type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument('--population', type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument('--cpu-count', type=int, default=1, help=argparse.SUPPRESS)
+    parser.add_argument('--random-seed', type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument('--species', type=str, default='Homo sapiens', help=argparse.SUPPRESS)
+    parser.add_argument('--forna', type=str, choices=['qbio', 'tbi'], default=None, help='Forna server to use for structure visualization (qbio or tbi)')
     args = parser.parse_args()
 
     log_file = os.path.join(args.output, "report_only_log.txt")
@@ -196,13 +267,16 @@ def main():
     log.info(f"Loading mRNA evaluation results from: {mrna_eval_path}")
     with open(mrna_eval_path, 'r') as f:
         mrna_evaluation_result = json.load(f)
+    
+    # Extract IDT complexity data if available
+    idt_complexity_data = cds_evaluation_result.get("idt_complexity", None)
 
     # --- Prepare Global Metrics for the Report ---
     # Start with mRNA global metrics as the base
     final_global_metrics = mrna_evaluation_result.get("global_metrics", {}).copy()
     cds_global_metrics = cds_evaluation_result.get("global_metrics", {})
-    log.info(f"Base global metrics from mRNA: {final_global_metrics}")
-    log.info(f"Global metrics from CDS: {cds_global_metrics}")
+    # log.info(f"Base global metrics from mRNA: {final_global_metrics}")
+    # log.info(f"Global metrics from CDS: {cds_global_metrics}")
     
     # Define which metrics to take from CDS results
     # Key: key in cds_global_metrics (from cds_evaluation_result.json)
@@ -249,6 +323,7 @@ def main():
         final_global_metrics["structure"] = "" # Default to empty string for Forna
 
     log.debug(f"Final combined global metrics for report: {final_global_metrics}")
+    # log.info(f"Structure in final_global_metrics: '{final_global_metrics.get('structure', 'NOT FOUND')}'")
 
     # Local metrics for plot are from entire mRNA evaluation
     final_local_metrics = mrna_evaluation_result.get("local_metrics", {})
@@ -348,11 +423,38 @@ def main():
     else:
         log.warning("No valid data or common x-axis to generate positional plot for entire mRNA.")
 
+    # --- Generate IDT Complexity Table HTML ---
+    idt_complexity_html = ""
+    idt_token_error = False
+    if idt_complexity_data:
+        log.info("Generating IDT complexity table...")
+        # Check if it's a list of items or a single result containing items
+        if isinstance(idt_complexity_data, list):
+            idt_complexity_html = generate_idt_complexity_table(idt_complexity_data)
+        elif isinstance(idt_complexity_data, dict):
+            # Check for 401 Unauthorized error
+            if 'error' in idt_complexity_data and '401' in str(idt_complexity_data.get('error', '')):
+                idt_token_error = True
+                idt_complexity_html = """
+                <div class="alert alert-danger" style="margin-top: 30px; padding: 20px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px; color: #721c24;">
+                    <h4 style="margin-top: 0;">⚠️ IDT Complexity Score Error</h4>
+                    <p><strong>Invalid or expired IDT API token.</strong></p>
+                    <p>Obtain a new valid IDT API token and re-run VaxLab with the correct token value.</p>
+                </div>
+                """
+            else:
+                # Try to extract items from different possible structures
+                items = idt_complexity_data.get('ComplexityItems', idt_complexity_data.get('items', [idt_complexity_data]))
+                if items:
+                    idt_complexity_html = generate_idt_complexity_table(items if isinstance(items, list) else [items])
+    
     # --- Construct Status Dictionary for ReportGenerator ---
     status: Dict[str, Any] = {
         "checkpoints": checkpoints_list, # Will be empty
         "evaluations": {"optimized": {"global_metrics": final_global_metrics, "local_metrics": final_local_metrics}},
-        "positional_plot_div": positional_plot_div
+        "positional_plot_div": positional_plot_div,
+        "idt_complexity_html": idt_complexity_html,
+        "idt_token_error": idt_token_error
     }
 
     # --- Metainfo Update for Forna ---
@@ -360,10 +462,31 @@ def main():
     seq_for_forna = outputseq_dict['seq'] # Entire mRNA sequence
     
     metainfo['structure'] = structure_mrna
-    metainfo['forna_url'] = f"https://pub-forna.qbio.io/?id=url/vaxpress&sequence={seq_for_forna}&structure={structure_mrna}" if structure_mrna and seq_for_forna else ""
+    
+    # Debug logging
+    log.info(f"Forna option: {args.forna}")
+    log.info(f"Structure available: {bool(structure_mrna)} (length: {len(structure_mrna) if structure_mrna else 0})")
+    log.info(f"Sequence available: {bool(seq_for_forna)} (length: {len(seq_for_forna) if seq_for_forna else 0})")
+    
+    # Generate Forna URL based on server selection
+    if args.forna is None:
+        # No --forna option provided: don't show structure visualization
+        metainfo['forna_url'] = ""
+        log.info("No --forna option provided: structure visualization disabled")
+    else:
+        # --forna option provided: generate URL with structure and sequence
+        if args.forna == 'qbio':
+            metainfo['forna_url'] = f"https://pub-forna.qbio.io/?id=url/vaxpress&sequence={seq_for_forna}&structure={structure_mrna}"
+            log.info("Generated qbio Forna URL")
+        elif args.forna == 'tbi':
+            metainfo['forna_url'] = f"http://nibiru.tbi.univie.ac.at/forna/forna.html?id=url/name&sequence={seq_for_forna}&structure={structure_mrna}"
+            log.info("Generated TBI Forna URL")
+    
     metainfo['end_time'] = time.time()
 
     # --- Instantiate ReportGenerator ---
+    # log.info(f"Final metainfo forna_url: {metainfo.get('forna_url', 'NOT SET')}")
+    
     try:
         log.debug("Initializing ReportGenerator...")
         generator = ReportGenerator(

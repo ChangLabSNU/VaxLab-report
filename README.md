@@ -18,9 +18,12 @@ VaxLab-report evaluates mRNA or RNA sequences using diverse biophysical and sequ
   - Tandem repeats
   - Bicodon usage bias
   - (Optional) DegScore: decay propensity scoring
+  - (Optional) IDT gBlock complexity scoring with API integration
 - Generates rich HTML reports with:
   - Metric summaries
   - Interactive positional plots
+  - RNA secondary structure visualization (Forna)
+  - IDT complexity analysis with emoji status indicators
   - Downloadable source files
 - Supports preset customization via JSON config
 - Outputs raw scores in JSON/TSV format for further analysis
@@ -54,7 +57,8 @@ python vaxlab_report/evaluate_only.py \
   -i path/to/input.fasta \
   -o output_directory \
   --preset path/to/parameters.json \
-  --species "Homo sapiens"
+  --species "Homo sapiens" \
+  --token "YOUR_IDT_API_TOKEN"  # Optional: for IDT complexity scoring
 ```
 
 **Generates:**
@@ -70,12 +74,46 @@ python vaxlab_report/evaluate_only.py \
 python vaxlab_report/report_only.py \
   -i path/to/input.fasta \
   -o output_directory \
-  --evaluations output_directory/checkpoints.tsv \
-  --species "Homo sapiens"
+  --forna qbio  # Optional: choose Forna server (qbio/tbi)
 ```
 
 **Generates:**
 - `report.html`
+
+---
+
+## 🔧 Advanced Options
+
+### IDT Complexity Scoring
+
+To enable IDT gBlock complexity analysis, obtain an API token from IDT and use the `--token` parameter:
+
+```bash
+python vaxlab_report/evaluate_only.py \
+  -i input.fasta \
+  -o output/ \
+  --token "YOUR_IDT_API_TOKEN"
+```
+
+**IDT Score Interpretation:**
+- ≤5: Good 😊 (synthesis ready)
+- 5-15: Caution ⚠️ (may need optimization)
+- ≥15: Poor 😞 (difficult to synthesize)
+
+### Forna Structure Visualization
+
+Choose between different Forna servers for RNA structure visualization:
+
+```bash
+# Use qbio server (default when --forna is provided)
+python vaxlab_report/report_only.py -i input.fasta -o output/ --forna qbio
+
+# Use TBI server  
+python vaxlab_report/report_only.py -i input.fasta -o output/ --forna tbi
+
+# Disable structure visualization
+python vaxlab_report/report_only.py -i input.fasta -o output/
+```
 
 ---
 
