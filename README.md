@@ -43,21 +43,14 @@ cd vaxlab-report
 conda create -y -n vaxlab_report python=3.8
 conda activate vaxlab_report
 
-# 3. Install ViennaRNA
-conda install -y -c bioconda viennarna
-
-# 4. Install VaxLab-report and dependencies
-pip install -e .
+# 3. Install VaxLab-report and all dependencies (including ViennaRNA)
+python -m pip install -e .
 ```
 
 
 **Dependencies:**
 - Python 3.8+
-- ViennaRNA (for RNA secondary structure prediction)
-- BioPython (for sequence handling)
-- Jinja2 (for HTML report templating)
-- Requests (for IDT API integration)
-- NumPy (for numerical computations)
+- All dependencies are automatically installed via pip (including ViennaRNA, BioPython, Jinja2, etc.)
 
 ---
 
@@ -214,10 +207,10 @@ Use a JSON file to customize metrics and evaluation parameters:
 
 ### Common Issues
 
-**Import Error: No module named 'RNA'**
+**Import Error: No module named 'Bio' or 'RNA'**
 ```bash
-# Install ViennaRNA
-conda install -c bioconda viennarna
+# Reinstall VaxLab-report with all dependencies
+python -m pip install -e . --force-reinstall
 ```
 
 **IDT API Authentication Failed**

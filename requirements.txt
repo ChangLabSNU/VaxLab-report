@@ -7,3 +7,4 @@ plotly>=5.0.0
 tqdm>=4.60.0
 pytrf>=1.4.0
 pylru>=1.2.0
+viennarna>=2.5.0
