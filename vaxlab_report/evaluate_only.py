@@ -209,7 +209,7 @@ def run_evaluation(
 
     # Evaluate IDT complexity if token is provided
     idt_complexity_result = None
-    if idt_token and output_suffix == "_cds":  # Only evaluate IDT complexity for CDS
+    if idt_token:  # Evaluate IDT complexity for both CDS and mRNA
         idt_complexity_result = evaluate_idt_complexity_for_sequence(
             sequence_to_evaluate,
             sequence_id,

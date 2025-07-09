@@ -66,17 +66,9 @@ def score_idt_complexity(seq: str, idt_token: Optional[str] = None, **kwargs) ->
         results = evaluate_idt_gblock_complexity(idt_token, {'sequence': dna_seq})
         
         if results and len(results) > 0:
-            result = results[0]  # Get first result
-            
-            # Extract all complexity data
-            complexity_items = []
-            if isinstance(result, list):
-                complexity_items = result
-            elif isinstance(result, dict) and 'ComplexityItems' in result:
-                complexity_items = result['ComplexityItems']
-            elif isinstance(result, dict):
-                # If result is directly the complexity item
-                complexity_items = [result]
+            # IDT API returns a list where first element contains the complexity items
+            # This matches the Jupyter notebook pattern: evalresult[0]
+            complexity_items = results[0]
             
             # Process complexity items
             idt_metrics = {

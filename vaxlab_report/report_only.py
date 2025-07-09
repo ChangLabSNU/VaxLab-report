@@ -272,8 +272,8 @@ def main():
     with open(mrna_eval_path, 'r') as f:
         mrna_evaluation_result = json.load(f)
     
-    # Extract IDT complexity data if available
-    idt_complexity_data = cds_evaluation_result.get("idt_complexity", None)
+    # Extract IDT complexity data from mRNA evaluation (for entire mRNA sequence)
+    idt_complexity_data = mrna_evaluation_result.get("idt_complexity", None)
 
     # --- Prepare Global Metrics for the Report ---
     # Start with mRNA global metrics as the base
