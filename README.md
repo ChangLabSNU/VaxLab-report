@@ -39,8 +39,8 @@ VaxLab-report evaluates mRNA or RNA sequences using diverse biophysical and sequ
 git clone https://github.com/ChangLabSNU/VaxLab-report.git
 cd vaxlab-report
 
-# 2. Set up the environment (Python 3.9+)
-conda create -y -n vaxlab_report python=3.9
+# 2. Set up the environment (Python 3.8+)
+conda create -y -n vaxlab_report python=3.8
 conda activate vaxlab_report
 
 # 3. Install ViennaRNA
@@ -52,7 +52,7 @@ pip install -e .
 
 
 **Dependencies:**
-- Python 3.9+
+- Python 3.8+
 - ViennaRNA (for RNA secondary structure prediction)
 - BioPython (for sequence handling)
 - Jinja2 (for HTML report templating)
