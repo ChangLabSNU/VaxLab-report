@@ -1,0 +1,8 @@
+include README.md
+include LICENSE
+include requirements.txt
+include parameters.json
+include test_data.fasta
+include test_regression.py
+recursive-include vaxlab_report/report_template *
+recursive-include vaxlab_report/data *

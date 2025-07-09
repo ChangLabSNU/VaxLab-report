@@ -43,9 +43,11 @@ cd VaxLab-report
 conda create -y -n vaxpress_report python=3.9
 conda activate vaxpress_report
 
-# 3. Install required packages
-conda install -y -c bioconda viennarna     # ViennaRNA for structure prediction
-pip install biopython jinja2 requests      # Core dependencies
+# 3. Install ViennaRNA
+conda install -y -c bioconda viennarna
+
+# 4. Install VaxLab-report and dependencies
+pip install -e .
 ```
 
 
