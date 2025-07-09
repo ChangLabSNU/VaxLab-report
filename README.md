@@ -37,11 +37,11 @@ VaxLab-report evaluates mRNA or RNA sequences using diverse biophysical and sequ
 ```bash
 # 1. Clone the repository
 git clone https://github.com/ChangLabSNU/VaxLab-report.git
-cd VaxLab-report
+cd vaxlab-report
 
 # 2. Set up the environment (Python 3.9+)
-conda create -y -n vaxpress_report python=3.9
-conda activate vaxpress_report
+conda create -y -n vaxlab_report python=3.9
+conda activate vaxlab_report
 
 # 3. Install ViennaRNA
 conda install -y -c bioconda viennarna
