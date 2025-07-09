@@ -20,8 +20,21 @@ TEST_INPUT_FILE = "test_data.fasta"
 def run_command(cmd, cwd=None):
     """Run a command and return the result"""
     try:
-        # Prepend conda activation to command
-        full_cmd = f'eval "$(/blaze/junsoopablo/conda/condabin/conda shell.bash hook)" && conda activate research && {cmd}'
+        # Check if we're in a conda environment or if conda is available
+        conda_env = os.environ.get('CONDA_DEFAULT_ENV')
+        if conda_env:
+            # Already in a conda environment, run command directly
+            full_cmd = cmd
+        else:
+            # Try to detect conda and activate environment
+            conda_exe = shutil.which('conda')
+            if conda_exe:
+                # Use detected conda
+                full_cmd = f'eval "$(conda shell.bash hook)" && conda activate base && {cmd}'
+            else:
+                # No conda found, run command directly (assume dependencies are available)
+                full_cmd = cmd
+        
         result = subprocess.run(
             full_cmd, 
             shell=True, 
