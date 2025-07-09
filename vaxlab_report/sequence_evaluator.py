@@ -253,7 +253,7 @@ class SequenceEvaluator:
 
 class SequenceEvaluationSession:
     """Manages the evaluation process for a batch of sequences."""
-    def __init__(self, evaluator: SequenceEvaluator, seqs: list[str],
+    def __init__(self, evaluator: 'SequenceEvaluator', seqs: List[str],
                  executor: futures.Executor):
         self.evaluator = evaluator
         self.seqs = seqs
