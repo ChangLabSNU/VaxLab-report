@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>VaxPress Result: {{ outputseq.id | default('N/A') }}</title>
+    <title>VaxLab Result: {{ outputseq.id | default('N/A') }}</title>
     <link rel="preconnect" href="https://fonts.gstatic.com">
     <link rel="preload" href="https://fonts.googleapis.com/css?family=Open+Sans:400,700&display=swap" as="style" type="text/css" crossorigin>
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -203,7 +203,7 @@
 <footer class="site-footer">
   <span class="site-footer-owner">Developed by <a href="https://qbio.io/">Chang Lab</a>, Seoul National University.</span>
    {% if metainfo.vaxpress_version != 'unknown' %}
-   <span class="site-footer-credits">Report generated using VaxPress version {{ metainfo.vaxpress_version }}.</span>
+   <span class="site-footer-credits">Report generated using VaxLab version {{ metainfo.vaxpress_version }}.</span>
    {% endif %}
 </footer>
 
